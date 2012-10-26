@@ -6,8 +6,8 @@
 #property copyright "Copyright 2012 Ian Belcher"
 #property link      "http://ianbelcher.me"
 
-extern int GLOBAL_period = 15;
-extern int GLOBAL_timeframe = 60;
+extern int GLOBAL_period = 5;
+extern int GLOBAL_timeframe = 1440;
 
 extern bool GLOBAL_USD = true;
 extern bool GLOBAL_EUR = true;
@@ -19,7 +19,7 @@ extern bool GLOBAL_AUD = true;
 extern bool GLOBAL_NZD = true;
 
 
-string GLOBAL_entities[8] = {"USD", "EUR", "GBP", "CHF", "CAD", "JPY", "AUD", "NZD"}; //, "SGD", "DKK", "NOK", "SEK", "PLN", "MXN", "XAU", "XAG" };
+string GLOBAL_entities[8] = {"USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "NZD"}; //, "SGD", "DKK", "NOK", "SEK", "PLN", "MXN", "XAU", "XAG" };
 double GLOBAL_ratings[8];
 
 #property indicator_separate_window
@@ -28,8 +28,8 @@ double GLOBAL_ratings[8];
 #property indicator_color2 Blue
 #property indicator_color3 Gray
 #property indicator_color4 Chocolate
-#property indicator_color5 Green
-#property indicator_color6 Red
+#property indicator_color5 Red
+#property indicator_color6 Green
 #property indicator_color7 Gold
 #property indicator_color8 White
 
@@ -39,8 +39,8 @@ double
    EUR[],
    GBP[],
    CHF[],
-   CAD[],
    JPY[],
+   CAD[],
    AUD[],
    NZD[],
    TOTAL[]
@@ -51,59 +51,61 @@ int init(){
    if(GLOBAL_USD == true){
       SetIndexBuffer(0,USD);
       SetIndexStyle (0,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (0,"USD");
+      SetIndexLabel (0,"USD"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
       ArraySetAsSeries(USD, TRUE);
    }
    
    if(GLOBAL_EUR == true){
       SetIndexBuffer(1,EUR);
       SetIndexStyle (1,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (1,"EUR");
+      SetIndexLabel (1,"EUR"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
       ArraySetAsSeries(EUR, TRUE);
    }
    if(GLOBAL_GBP == true){
       SetIndexBuffer(2,GBP);
       SetIndexStyle (2,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (2,"GBP");
+      SetIndexLabel (2,"GBP"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
       ArraySetAsSeries(GBP, TRUE);
    }
    if(GLOBAL_CHF == true){
       SetIndexBuffer(3,CHF);
       SetIndexStyle (3,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (3,"CHF");
+      SetIndexLabel (3,"CHF"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
       ArraySetAsSeries(CHF, TRUE);
    }
-   if(GLOBAL_CAD == true){
-      SetIndexBuffer(4,CAD);
-      SetIndexStyle (4,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (4,"CAD");
-      ArraySetAsSeries(CAD, TRUE);
-   }
    if(GLOBAL_JPY == true){
-      SetIndexBuffer(5,JPY);
-      SetIndexStyle (5,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (5,"JPY");
+      SetIndexBuffer(4,JPY);
+      SetIndexStyle (4,DRAW_LINE,STYLE_SOLID,1);
+      SetIndexLabel (4,"JPY"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
       ArraySetAsSeries(JPY, TRUE);
+   }
+   if(GLOBAL_CAD == true){
+      SetIndexBuffer(5,CAD);
+      SetIndexStyle (5,DRAW_LINE,STYLE_SOLID,1);
+      SetIndexLabel (5,"CAD"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
+      ArraySetAsSeries(CAD, TRUE);
    }
    if(GLOBAL_AUD == true){
       SetIndexBuffer(6,AUD);
       SetIndexStyle (6,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (6,"AUD");
+      SetIndexLabel (6,"AUD"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
       ArraySetAsSeries(AUD, TRUE);
    }
    if(GLOBAL_NZD == true){
       SetIndexBuffer(7,NZD);
       SetIndexStyle (7,DRAW_LINE,STYLE_SOLID,1);
-      SetIndexLabel (7,"NZD");
+      SetIndexLabel (7,"NZD"+" "+GLOBAL_timeframe+"min x"+GLOBAL_period);
       ArraySetAsSeries(NZD, TRUE);
    }
    
    SetLevelValue (0, 0);
+   SetLevelValue (1, 8000);
+   SetLevelValue (2, -8000);
 
 }
 
 int start(){
-
+   
    int 
       FUNCVAR_basecurrency,
       FUNCVAR_tradedcurrency,
@@ -133,7 +135,8 @@ int start(){
                MarketInfo(FUNCVAR_base+FUNCVAR_traded, MODE_TRADEALLOWED) == 1 &&
                MarketInfo(FUNCVAR_base+FUNCVAR_traded, MODE_SPREAD) > 0
             ){
-               FUNCVAR_amount = iClose(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iBarShift(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iTime(FUNCVAR_base+FUNCVAR_traded, Period(),i))) - iOpen(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iBarShift(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iTime(FUNCVAR_base+FUNCVAR_traded, Period(),i)) + GLOBAL_period - 1);
+               //FUNCVAR_amount = iClose(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iBarShift(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iTime(FUNCVAR_base+FUNCVAR_traded, Period(),i))) - iOpen(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iBarShift(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, iTime(FUNCVAR_base+FUNCVAR_traded, Period(),i)) + GLOBAL_period - 1);
+               FUNCVAR_amount = iClose(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, i) - iOpen(FUNCVAR_base+FUNCVAR_traded, GLOBAL_timeframe, i + GLOBAL_period - 1);
                //FUNCVAR_amount = FUNCVAR_amount / MarketInfo(FUNCVAR_base+FUNCVAR_traded, MODE_POINT); //Get size in Points
                FUNCVAR_amount = FUNCVAR_amount / MarketInfo(FUNCVAR_base+FUNCVAR_traded, MODE_TICKSIZE); // Get size in Ticks
                FUNCVAR_amount = FUNCVAR_amount * MarketInfo(FUNCVAR_base+FUNCVAR_traded, MODE_TICKVALUE); // Get size in account currency
@@ -145,9 +148,9 @@ int start(){
       }
       
       USD[i] = GLOBAL_ratings[0];
-      CHF[i] = GLOBAL_ratings[1];
-      EUR[i] = GLOBAL_ratings[2];
-      GBP[i] = GLOBAL_ratings[3];
+      EUR[i] = GLOBAL_ratings[1];
+      GBP[i] = GLOBAL_ratings[2];
+      CHF[i] = GLOBAL_ratings[3];
       JPY[i] = GLOBAL_ratings[4];
       CAD[i] = GLOBAL_ratings[5];
       AUD[i] = GLOBAL_ratings[6];

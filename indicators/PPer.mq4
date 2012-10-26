@@ -16,7 +16,7 @@
 #property indicator_color6 White
 #property indicator_color7 White
 
-extern int extern_timeframe   = 1440;  //In minutes, the chart to work off when calculating PP lines.
+extern int extern_timeframe   = 10080;  //In minutes, the chart to work off when calculating PP lines.
 
 double 
    PP[],

@@ -27,7 +27,7 @@ extern bool    GLOBAL_debug                  = false;          //Increases the a
 extern bool    GLOBAL_resetfiles             = true;           //Deletes and resets output files. Only for development.
 extern bool    GLOBAL_runcron                = true;           //This setting turns off the cron update tasks. (ONLY runs init tasks)
 extern bool    GLOBAL_jumpstart              = false;          //This setting runs all cron tasks to begin with as opposed to waiting
-extern double  GLOBAL_riskpertradepercentage = 0.001;          //The percentage of the account to risk per trade.
+extern double  GLOBAL_riskpertradepercentage = 0.005;          //The percentage of the account to risk per trade.
 extern int     GLOBAL_pausetime              = 1000;           //In milliseconds. Time to wait before polling server after bad response.
 extern bool    GLOBAL_sendnotifications      = false;          //Whether to send notifications or not.
 
@@ -1343,7 +1343,7 @@ void account_createorders(){
       while(FUNCVAR_ticket < 0 && FUNCVAR_attempt < 6 && FUNCVAR_volume > 0){
          FUNCVAR_price = getinfo(2, FUNCVAR_symbol, GLOBAL_timeframe, 1) + FUNCVAR_target * 1/3;
          FUNCVAR_sl = FUNCVAR_price - FUNCVAR_target;
-         FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 20);
+         FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 1);
          FUNCVAR_comment = FUNCVAR_target;
          FUNCVAR_time = iTime(FUNCVAR_symbol, GLOBAL_timeframe, 0) + GLOBAL_timeframe * 60;
          FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_BUYSTOP, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
@@ -1365,14 +1365,14 @@ void account_createorders(){
       
       while(FUNCVAR_ticket < 0 && FUNCVAR_attempt < 6 && FUNCVAR_volume > 0){
          FUNCVAR_price = getinfo(3, FUNCVAR_symbol, GLOBAL_timeframe, 1) - FUNCVAR_target * 1/3;
-         //FUNCVAR_sl = FUNCVAR_price + FUNCVAR_target;
-         //FUNCVAR_tp = FUNCVAR_price - (FUNCVAR_target * 20);
-         FUNCVAR_sl = FUNCVAR_price - FUNCVAR_target;
-         FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 20);
+         FUNCVAR_sl = FUNCVAR_price + FUNCVAR_target;
+         FUNCVAR_tp = FUNCVAR_price - (FUNCVAR_target * 1);
+         //FUNCVAR_sl = FUNCVAR_price - FUNCVAR_target;
+         //FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 20);
          FUNCVAR_comment = FUNCVAR_target;
          FUNCVAR_time = iTime(FUNCVAR_symbol, GLOBAL_timeframe, 0) + GLOBAL_timeframe * 60;
-         //FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_SELLSTOP, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
-         FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_BUYLIMIT, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
+         FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_SELLSTOP, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
+         //FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_BUYLIMIT, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
          if(FUNCVAR_ticket < 0){
             FUNCVAR_errornumber = GetLastError();
             log("Order failed attempt "+FUNCVAR_attempt+" with error #"+FUNCVAR_errornumber+" - "+ErrorDescription(FUNCVAR_errornumber));

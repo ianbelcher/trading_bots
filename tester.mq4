@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//|                                            testing_withtrend.mq4 |
+//|                                                       tester.mq4 |
 //|                                       Copyright 2012 Ian Belcher |
 //|                                             http://ianbelcher.me |
 //+------------------------------------------------------------------+
@@ -8,8 +8,8 @@
 
 double 
    FUNCVAR_lossfactor = 1.0,
-   FUNCVAR_profitfactor = 0.2,
-   FUNCVAR_risk = 0.01,
+   FUNCVAR_profitfactor = 20.0,
+   FUNCVAR_risk = 0.05,
    FUNCVAR_balance
    ;
 
@@ -35,11 +35,11 @@ int start(){
       
       order_closeout();
       
-      double FUNCVAR_distance = (Ask-Bid) * 20.0;
+      double FUNCVAR_distance = (Ask-Bid) * 2;
       
       double FUNCVAR_lots = MathMax(order_getlotsize(FUNCVAR_distance, Symbol(), FUNCVAR_risk), MarketInfo(Symbol(), MODE_MINLOT));
       
-      double FUNCVAR_price = High[1] + (Ask-Bid) * 4;
+      double FUNCVAR_price = High[1] + (Ask-Bid) * 1;
       
       FUNCVAR_ticket = OrderSend(Symbol(), OP_BUYSTOP, FUNCVAR_lots, FUNCVAR_price, 2, FUNCVAR_price - (FUNCVAR_distance * FUNCVAR_lossfactor * 1.0), FUNCVAR_price + (FUNCVAR_distance * FUNCVAR_profitfactor * 1.0), "", 0, TimeCurrent() + 60*60);
       
@@ -47,7 +47,7 @@ int start(){
          Alert(FUNCVAR_price+" "+(FUNCVAR_price - (FUNCVAR_distance * FUNCVAR_lossfactor * 1.0))+" "+(FUNCVAR_price + (FUNCVAR_distance * FUNCVAR_profitfactor * 1.0)));
       }
       
-      FUNCVAR_price = Low[1] - (Ask - Bid) * 4;
+      FUNCVAR_price = Low[1] - (Ask - Bid) * 1;
       
       FUNCVAR_ticket = OrderSend(Symbol(), OP_SELLSTOP, FUNCVAR_lots, FUNCVAR_price, 2, FUNCVAR_price + (FUNCVAR_distance * FUNCVAR_lossfactor * 1.0), FUNCVAR_price - (FUNCVAR_distance * FUNCVAR_profitfactor * 1.0), "", 0, TimeCurrent() + 60*60);
    
