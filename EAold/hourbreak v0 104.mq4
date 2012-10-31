@@ -27,12 +27,30 @@ extern bool    GLOBAL_debug                  = false;          //Increases the a
 extern bool    GLOBAL_resetfiles             = true;           //Deletes and resets output files. Only for development.
 extern bool    GLOBAL_runcron                = true;           //This setting turns off the cron update tasks. (ONLY runs init tasks)
 extern bool    GLOBAL_jumpstart              = false;          //This setting runs all cron tasks to begin with as opposed to waiting
-extern double  GLOBAL_riskpertradepercentage = 0.001;          //The percentage of the account to risk per trade.
+extern double  GLOBAL_riskpertradepercentage = 0.1;            //The percentage of the account to risk per trade.
+extern double  GLOBAL_piptarget              = 0.0004;         //The target distance in pips
 extern int     GLOBAL_pausetime              = 1000;           //In milliseconds. Time to wait before polling server after bad response.
-extern bool    GLOBAL_sendnotifications      = true;           //Whether to send notifications or not.
+extern bool    GLOBAL_sendnotifications      = false;          //Whether to send notifications or not.
 
-extern string  SET_CURRENCY                  = "EURUSD";
-extern double  SET_DISTANCE                  = 0.00025;
+extern bool    CURRENCY_USD                  = true;
+extern bool    CURRENCY_CHF                  = false;
+extern bool    CURRENCY_EUR                  = true;
+extern bool    CURRENCY_GBP                  = false;
+extern bool    CURRENCY_CAD                  = false;
+extern bool    CURRENCY_JPY                  = false;
+extern bool    CURRENCY_AUD                  = false;
+extern bool    CURRENCY_NZD                  = false;
+extern bool    CURRENCY_SGD                  = false;
+extern bool    CURRENCY_HKD                  = false;
+extern bool    CURRENCY_DKK                  = false;
+extern bool    CURRENCY_NOK                  = false;
+extern bool    CURRENCY_SEK                  = false;
+extern bool    CURRENCY_TRY                  = false;
+extern bool    CURRENCY_PLN                  = false;
+extern bool    CURRENCY_MXN                  = false;
+extern bool    CURRENCY_XAU                  = false;
+extern bool    CURRENCY_XAG                  = false;
+extern string  CURRENCY_skippairs            = ";AUDJPY;EURAUD;GBPAUD;GBPJPY;USDJPY;EURGBP"; //= "CHFSGD; EURSGD; EURDKK; EURNOK; EURSEK; USDTRY; EURTRY; GBPSGD; GBPSEK; GBPNOK; GBPDKK; GBPTRY; CADSGD; CADSEK; CADNOK; CADDKK; CADTRY; AUDSGD; NZDCHF; NZDSGD; NZDCAD; NOKJPY; HKDJPY; NOKSEK; SEKJPY";
 
 /*
 Entry Rules.
@@ -84,11 +102,6 @@ Currently testing on a pro account while forward testing on a micro account. MOD
 Moving to a x 3 setup for testing (should find a micro testing server later) and finding that EURUSD works on this setup. 
 Going to forward test using MODE_SPREAD x 3 instead of MODE_STOPLEVEL with just EURUSD
 
-v0 104
-Have updated VPS to a two install setup, one for Live the other for Demo. 
-Currently recording SPREAD and STOPLEVEL for the EURUSD pair to give a better idea for how SPREAD moves in relation to high/low/pp etc.
-Looking to remove the Currency class and have Currencies and distances set manually by the user.
-
 */
 
 int         GLOBAL_timeframe;
@@ -108,18 +121,39 @@ int init(){
 
    log(PROGRAM_VERSION + " started.");
    log("GLOBAL_pausetime: "+GLOBAL_pausetime);
+   log("GLOBAL_debug: "+GLOBAL_debug);
+   log("GLOBAL_resetfiles: "+GLOBAL_resetfiles);
    log("GLOBAL_runcron: "+GLOBAL_runcron);
+   log("GLOBAL_jumpstart: "+GLOBAL_jumpstart);
    log("GLOBAL_riskpertradepercentage: "+GLOBAL_riskpertradepercentage);
    log("GLOBAL_sendnotifications: "+GLOBAL_sendnotifications);
-   log("SET_CURRENCY: "+SET_CURRENCY);
-   log("SET_DISTANCE: "+SET_DISTANCE);
-
+   log("CURRENCY_USD :"+CURRENCY_USD);
+   log("CURRENCY_CHF :"+CURRENCY_USD);
+   log("CURRENCY_EUR :"+CURRENCY_EUR);
+   log("CURRENCY_GBP :"+CURRENCY_GBP);
+   log("CURRENCY_CAD :"+CURRENCY_CAD);
+   log("CURRENCY_JPY :"+CURRENCY_JPY);
+   log("CURRENCY_AUD :"+CURRENCY_AUD);
+   log("CURRENCY_NZD :"+CURRENCY_NZD);
+   log("CURRENCY_SGD :"+CURRENCY_SGD);
+   log("CURRENCY_HKD :"+CURRENCY_HKD);
+   log("CURRENCY_DKK :"+CURRENCY_DKK);
+   log("CURRENCY_NOK :"+CURRENCY_NOK);
+   log("CURRENCY_SEK :"+CURRENCY_SEK);
+   log("CURRENCY_TRY :"+CURRENCY_TRY);
+   log("CURRENCY_PLN :"+CURRENCY_PLN);
+   log("CURRENCY_MXN :"+CURRENCY_MXN);
+   log("CURRENCY_XAU :"+CURRENCY_XAU);
+   log("CURRENCY_XAG :"+CURRENCY_XAG);
+   log("CURRENCY_skippairs :"+CURRENCY_skippairs);
+     
    GLOBAL_timeframe              = HOUR;              //In Minutes. The timeframe to cycle orders.
    GLOBAL_cronincrement          = 15;                //In Minutes. What time frame to run the smallest cron task
    GLOBAL_refreshrate            = 1;                 //In Seconds. How often to refresh rates
    
    account_init();  
    cron_init();
+   currency_init();
 
    if(GLOBAL_runtests == true){
       testing_runtests();
@@ -144,8 +178,14 @@ int start(){
    int FUNCVAR_time;
 
    if(GLOBAL_runcron == true){
-      account_updatestops();
-      cron_update();
+      //while(1==1){
+         //if(TimeCurrent() >= FUNCVAR_time + GLOBAL_refreshrate){
+            //FUNCVAR_time = TimeCurrent();
+            //RefreshRates();
+            account_updatestops();
+            cron_update();
+         //}
+      //}
    }
    return(0);
 }
@@ -361,8 +401,8 @@ void cron_newhour(){
    //v---------------------
 
    if(
-      TimeHour(TimeCurrent()) >= 8 &&
-      TimeHour(TimeCurrent()) <= 22
+      TimeHour(TimeCurrent()) >= 9 &&
+      TimeHour(TimeCurrent()) <= 18
    ){
       account_createorders();
    }else{
@@ -546,6 +586,150 @@ double getinfo(int FUNCGET_what, string FUNCGET_pair, int FUNCGET_timeframe, int
 }
 
 //+------------------------------------------------------------------+
+//| Currency class                                                   |
+//+------------------------------------------------------------------+
+
+int         CURRENCY_all_numberofpairs;
+string      CURRENCY_all_entities[100];
+string      CURRENCY_all_pairs[100];
+
+int         CURRENCY_selected_numberofpairs;
+string      CURRENCY_selected_entities[100];
+string      CURRENCY_selected_pairs[100];
+
+void currency_init(){
+   function_start("currency_init", true);
+   
+   int
+      FUNCVAR_basecurrency,
+      FUNCVAR_countercurrency
+      ;
+   string
+      FUNCVAR_currentpair = "",
+      FUNCVAR_currencylist = ""
+      ;
+   
+   for(int a=0;a<100;a++){
+      CURRENCY_selected_entities[a] = " ";
+      CURRENCY_all_entities[a] = " ";
+      CURRENCY_selected_pairs[a] = " ";
+      CURRENCY_all_pairs[a] = " ";
+   }
+   CURRENCY_selected_numberofpairs = 0;
+   CURRENCY_all_numberofpairs = 0;
+   
+   if(CURRENCY_USD){
+      CURRENCY_selected_entities[0] = "USD";
+   }
+   CURRENCY_all_entities[0] = "USD";
+   if(CURRENCY_CHF){
+      CURRENCY_selected_entities[1] = "CHF";
+   }
+   CURRENCY_all_entities[1] = "CHF";
+   if(CURRENCY_EUR){
+      CURRENCY_selected_entities[2] = "EUR";
+   }
+   CURRENCY_all_entities[2] = "EUR";
+   if(CURRENCY_GBP){
+      CURRENCY_selected_entities[3] = "GBP";
+   }
+   CURRENCY_all_entities[3] = "GBP";
+   if(CURRENCY_CAD){
+      CURRENCY_selected_entities[4] = "CAD";
+   }
+   CURRENCY_all_entities[4] = "CAD";   
+   if(CURRENCY_JPY){
+      CURRENCY_selected_entities[5] = "JPY";
+   }
+   CURRENCY_all_entities[5] = "JPY";   
+   if(CURRENCY_AUD){
+      CURRENCY_selected_entities[6] = "AUD";
+   }
+   CURRENCY_all_entities[6] = "AUD";   
+   if(CURRENCY_NZD){
+      CURRENCY_selected_entities[7] = "NZD";
+   }
+   CURRENCY_all_entities[7] = "NZD";
+   if(CURRENCY_SGD){
+      CURRENCY_selected_entities[8] = "SGD";
+   } 
+   CURRENCY_all_entities[8] = "SGD";  
+   if(CURRENCY_HKD){
+      CURRENCY_selected_entities[9] = "HKD";
+   }
+   CURRENCY_all_entities[9] = "HKD";   
+   if(CURRENCY_DKK){
+      CURRENCY_selected_entities[10] = "DKK";
+   }
+   CURRENCY_all_entities[10] = "DKK";   
+   if(CURRENCY_NOK){
+      CURRENCY_selected_entities[11] = "NOK";
+   }
+   CURRENCY_all_entities[11] = "NOK";
+   if(CURRENCY_SEK){
+      CURRENCY_selected_entities[12] = "SEK";
+   }
+   CURRENCY_all_entities[12] = "SEK";   
+   if(CURRENCY_TRY){
+      CURRENCY_selected_entities[13] = "TRY";
+   }
+   CURRENCY_all_entities[13] = "TRY";   
+   if(CURRENCY_PLN){
+      CURRENCY_selected_entities[14] = "PLN";
+   }
+   CURRENCY_all_entities[14] = "PLN";   
+   if(CURRENCY_MXN){
+      CURRENCY_selected_entities[15] = "MXN";
+   }
+   CURRENCY_all_entities[15] = "MXN";
+   if(CURRENCY_XAU){
+      CURRENCY_selected_entities[16] = "XAU";
+   }
+   CURRENCY_all_entities[16] = "XAU";   
+   if(CURRENCY_XAG){
+      CURRENCY_selected_entities[17] = "XAG";
+   }
+   CURRENCY_all_entities[17] = "XAG";      
+   
+   for(FUNCVAR_basecurrency = 0; FUNCVAR_basecurrency < 100; FUNCVAR_basecurrency++){
+      for(FUNCVAR_countercurrency = 0; FUNCVAR_countercurrency < 100; FUNCVAR_countercurrency++){
+         FUNCVAR_currentpair = CURRENCY_all_entities[FUNCVAR_basecurrency] + CURRENCY_all_entities[FUNCVAR_countercurrency];
+         if(
+            MarketInfo(FUNCVAR_currentpair, MODE_TRADEALLOWED) == 1
+         ){
+            CURRENCY_all_pairs[CURRENCY_all_numberofpairs] = FUNCVAR_currentpair;
+            CURRENCY_all_numberofpairs++;
+         }
+         GetLastError();
+      }
+   }
+   
+   for(FUNCVAR_basecurrency = 0; FUNCVAR_basecurrency < 100; FUNCVAR_basecurrency++){
+      for(FUNCVAR_countercurrency = 0; FUNCVAR_countercurrency < 100; FUNCVAR_countercurrency++){
+         FUNCVAR_currentpair = CURRENCY_selected_entities[FUNCVAR_basecurrency] + CURRENCY_selected_entities[FUNCVAR_countercurrency];
+         if(
+            MarketInfo(FUNCVAR_currentpair, MODE_TRADEALLOWED) == 1 &&
+            StringFind(CURRENCY_skippairs, FUNCVAR_currentpair) < 0
+         ){
+            CURRENCY_selected_pairs[CURRENCY_selected_numberofpairs] = FUNCVAR_currentpair;
+            CURRENCY_selected_numberofpairs++;
+         }
+         GetLastError();
+      }
+   }
+   
+   for(a=0; a < CURRENCY_selected_numberofpairs; a++){
+      if(StringLen(CURRENCY_selected_pairs[a])>0){
+         FUNCVAR_currencylist = FUNCVAR_currencylist+";"+CURRENCY_selected_pairs[a];
+      }
+   }
+   log("Found "+CURRENCY_all_numberofpairs+" pairs and using "+CURRENCY_selected_numberofpairs+": "+FUNCVAR_currencylist);
+   //log("=SUMIF(R68C7:R3000C7,R[-1]C,R68C28:R3000C28)&\" \"&SUMIF(R68C7:R3000C7,R[-1]C,R68C35:R3000C35)&\" \"&SUMIF(R68C7:R3000C7,R[-1]C,R68C28:R3000C28)+SUMIF(R68C7:R3000C7,R[-1]C,R68C35:R3000C35)");
+   
+   function_end();
+}
+
+//+------------------------------------------------------------------+
 //| record keeping functions                                         |
 //+------------------------------------------------------------------+
 
@@ -619,120 +803,134 @@ string humandate(int FUNCGET_unixdate){
 
 //vard - variable definitions
 
-int      TESTING_VAR_bar;
-double   TESTING_VAR_testvar1;
-double   TESTING_VAR_testvar2;
+string   TESTING_VAR_pair[100];
+int      TESTING_VAR_bar[100];
+double   TESTING_VAR_testvar1[100];
+double   TESTING_VAR_testvar2[100];
+double   TESTING_VAR_spread[100];
+double   TESTING_VAR_stoplossfactor[100];
 
-double   TESTING_VAR_tp;
-double   TESTING_VAR_sl;
-double   TESTING_VAR_prize;
+double   TESTING_VAR_tp[100];
+double   TESTING_VAR_sl[100];
+double   TESTING_VAR_prize[100];
+double   TESTING_VAR_ratio_spread[100];
+double   TESTING_VAR_ratio_slfactor[100];
 
-double   TESTING_VAR_highpoint;
-double   TESTING_VAR_highhit;
-double   TESTING_VAR_hightppoint;
-double   TESTING_VAR_hightphit;
-double   TESTING_VAR_highslpoint;
-double   TESTING_VAR_highslhit;
-double   TESTING_VAR_highmaxpriorsl;
-double   TESTING_VAR_highwinner;
-double   TESTING_VAR_lowpoint;
-double   TESTING_VAR_lowhit;
-double   TESTING_VAR_lowtppoint;
-double   TESTING_VAR_lowtphit;
-double   TESTING_VAR_lowslpoint;
-double   TESTING_VAR_lowslhit;
-double   TESTING_VAR_lowmaxpriorsl;
-double   TESTING_VAR_lowwinner;
+double   TESTING_VAR_highpoint[100];
+double   TESTING_VAR_highhit[100];
+double   TESTING_VAR_hightppoint[100];
+double   TESTING_VAR_hightphit[100];
+double   TESTING_VAR_highslpoint[100];
+double   TESTING_VAR_highslhit[100];
+double   TESTING_VAR_highmaxpriorsl[100];
+double   TESTING_VAR_highwinner[100];
+double   TESTING_VAR_lowpoint[100];
+double   TESTING_VAR_lowhit[100];
+double   TESTING_VAR_lowtppoint[100];
+double   TESTING_VAR_lowtphit[100];
+double   TESTING_VAR_lowslpoint[100];
+double   TESTING_VAR_lowslhit[100];
+double   TESTING_VAR_lowmaxpriorsl[100];
+double   TESTING_VAR_lowwinner[100];
 
-int      TESTING_TIMEFRAME = HOUR;
-int      TESTING_MINITIMEFRAME = 1;
-double   TESTING_DISTANCE = 0.00060;
-double   TESTING_SPREAD = 0.00013;
+int      VOLCONST_vol_timeframe = HOUR;
+int      VOLCONST_vol_minitimeframe = 1;
+int      VOLCONST_vol_lookback = 5;
+int      VOLCONST_vol_targetfactor = 10; //size of tp compared to sl
+int      VOLCONST_vol_slfactor = 5; //size of sl compared to slratio
+double   VOLCONST_vol_targetsize = 1; //percentage of the average break to aim for.
+double   VOLCONST_vol_minsprdrto = 1;
+double   VOLCONST_vol_minslrto = 1;
 
 void testing_logarray(int FUNCGET_instance = 1){
    function_start("testing_logarray", true);
-   if(
-      TimeHour(iTime(SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar)) >= 8 &&
-      TimeHour(iTime(SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar)) <= 20 
-   ){
-      log(
-      humandate(iTime(SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar))+";"+
-      iTime(SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar)+";"+
-      SET_CURRENCY+";"+
-      TESTING_VAR_testvar1+";"+
-      //"=SUMIF(R1C6:R50000C6,RC6,R1C20:R50000C20)"+";"+
-      TESTING_VAR_testvar2+";"+
-      //"=SUMIF(R1C6:R50000C6,RC6,R1C28:R50000C28)"+";"+
-        
-      TESTING_VAR_tp+";"+
-      TESTING_VAR_sl+";"+
-      TESTING_VAR_prize+";"+
-             
-      TESTING_VAR_highpoint+";"+
-      //humandate(TESTING_VAR_highhit)+";"+
-      TESTING_VAR_highhit+";"+
-      TESTING_VAR_hightppoint+";"+
-      //humandate(TESTING_VAR_hightphit)+";"+
-      TESTING_VAR_hightphit+";"+
-      TESTING_VAR_highslpoint+";"+
-      //humandate(TESTING_VAR_highslhit)+";"+
-      TESTING_VAR_highslhit+";"+
-      TESTING_VAR_highmaxpriorsl+";"+
-      testing_removezero(TESTING_VAR_highwinner)+";"+
-      
-      TESTING_VAR_lowpoint+";"+
-      humandate(TESTING_VAR_lowhit)+";"+
-      //TESTING_VAR_lowhit+";"+
-      TESTING_VAR_lowtppoint+";"+
-      humandate(TESTING_VAR_lowtphit)+";"+
-      TESTING_VAR_lowslpoint+";"+
-      humandate(TESTING_VAR_lowslhit)+";"+
-      TESTING_VAR_lowmaxpriorsl+";"+
-      testing_removezero(TESTING_VAR_lowwinner)+";"+
-      "=IF(RC5<>R[-1]C5,SUMIF(R1C5:R50000C5,RC5,R1C19:R50000C19)+SUMIF(R1C5:R50000C5,RC5,R1C27:R50000C27),\"\")"+";"+
-      "=IF(RC[-1]<>\"\",R[-1]C+R[-1]C*RC[-1]*0.01,R[-1]C)"+";"+
-      "=MAX(R[-1]C,RC[-1])"+";"+
-      "=RC[-2]/RC[-1]"+";"+
-      "");
-      
-      if(SET_CURRENCY == Symbol()){
-         ObjectCreate("hline-"+FUNCGET_instance+"entry", OBJ_RECTANGLE, 0, 
-            iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar - 1), 
-            TESTING_VAR_highpoint, 
-            iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar), 
-            TESTING_VAR_lowpoint
-         );
-         ObjectSet("hline-"+FUNCGET_instance+"entry", OBJPROP_COLOR, Yellow);
-         ObjectSet("hline-"+FUNCGET_instance+"entry", OBJPROP_STYLE, 0);
-         ObjectSet("hline-"+FUNCGET_instance+"entry", OBJPROP_WIDTH, 1);
-         ObjectSet("hline-"+FUNCGET_instance+"entry", OBJPROP_BACK, 0);
-      
-         ObjectCreate("hline-"+FUNCGET_instance+"sl", OBJ_RECTANGLE, 0, 
-            iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar - 1), 
-            TESTING_VAR_highslpoint, 
-            iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar), 
-            TESTING_VAR_lowslpoint
-         );
-         ObjectSet("hline-"+FUNCGET_instance+"sl", OBJPROP_COLOR, Red);
-         ObjectSet("hline-"+FUNCGET_instance+"sl", OBJPROP_STYLE, 0);
-         ObjectSet("hline-"+FUNCGET_instance+"sl", OBJPROP_WIDTH, 1);
-         ObjectSet("hline-"+FUNCGET_instance+"sl", OBJPROP_BACK, 0);
+   for(int a=0;a<100;a++){
+      if(
+         StringLen(TESTING_VAR_pair[a]) > 2 &&
+         TimeHour(iTime(TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a])) >= 8 &&
+         TimeHour(iTime(TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a])) <= 20 
+      ){
+         log(
+         humandate(iTime(TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a]))+";"+
+         iTime(TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a])+";"+
+         TESTING_VAR_pair[a]+";"+
+         //TESTING_VAR_testvar1[a]+";"+
+         "=SUMIF(R1C6:R50000C6,RC6,R1C23:R50000C23)"+";"+
+         //TESTING_VAR_testvar2[a]+";"+
+         "=SUMIF(R1C6:R50000C6,RC6,R1C31:R50000C31)"+";"+
+         TESTING_VAR_spread[a]+";"+
+         TESTING_VAR_stoplossfactor[a]+";"+
+           
+         TESTING_VAR_tp[a]+";"+
+         TESTING_VAR_sl[a]+";"+
+         TESTING_VAR_prize[a]+";"+
+         TESTING_VAR_ratio_spread[a]+";"+
+         TESTING_VAR_ratio_slfactor[a]+";"+
+                
+         TESTING_VAR_highpoint[a]+";"+
+         humandate(TESTING_VAR_highhit[a])+";"+
+         //TESTING_VAR_highhit[a]+";"+
+         TESTING_VAR_hightppoint[a]+";"+
+         humandate(TESTING_VAR_hightphit[a])+";"+
+         TESTING_VAR_highslpoint[a]+";"+
+         humandate(TESTING_VAR_highslhit[a])+";"+
+         TESTING_VAR_highmaxpriorsl[a]+";"+
+         testing_removezero(TESTING_VAR_highwinner[a])+";"+
          
-         ObjectCreate("hline-"+FUNCGET_instance+"tp", OBJ_RECTANGLE, 0, 
-            iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar - 1), 
-            TESTING_VAR_hightppoint, 
-            iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar), 
-            TESTING_VAR_lowtppoint
-         );
-         ObjectSet("hline-"+FUNCGET_instance+"tp", OBJPROP_COLOR, Green);
-         ObjectSet("hline-"+FUNCGET_instance+"tp", OBJPROP_STYLE, 0);
-         ObjectSet("hline-"+FUNCGET_instance+"tp", OBJPROP_WIDTH, 1);
-         ObjectSet("hline-"+FUNCGET_instance+"tp", OBJPROP_BACK, 0);
+         TESTING_VAR_lowpoint[a]+";"+
+         humandate(TESTING_VAR_lowhit[a])+";"+
+         //TESTING_VAR_lowhit[a]+";"+
+         TESTING_VAR_lowtppoint[a]+";"+
+         humandate(TESTING_VAR_lowtphit[a])+";"+
+         TESTING_VAR_lowslpoint[a]+";"+
+         humandate(TESTING_VAR_lowslhit[a])+";"+
+         TESTING_VAR_lowmaxpriorsl[a]+";"+
+         testing_removezero(TESTING_VAR_lowwinner[a])+";"+
+         "=IF(RC5<>R[-1]C5,SUMIF(R1C5:R50000C5,RC5,R1C23:R50000C23)+SUMIF(R1C5:R50000C5,RC5,R1C31:R50000C31),\"\")"+";"+
+         "=IF(RC[-1]<>\"\",R[-1]C+R[-1]C*RC[-1]*0.001,R[-1]C)"+";"+
+         "=MAX(R[-1]C,RC[-1])"+";"+
+         "=RC[-2]/RC[-1]"+";"+
+         "");
          
-         ObjectCreate("heading-"+FUNCGET_instance+"high", OBJ_TEXT, 0, iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar), TESTING_VAR_highpoint);
-         ObjectSetText("heading-"+FUNCGET_instance+"high", "               "+TESTING_VAR_highwinner, 9, "Courier New", White);
-         ObjectCreate("heading-"+FUNCGET_instance+"low", OBJ_TEXT, 0, iTime(Symbol(),TESTING_TIMEFRAME, TESTING_VAR_bar), TESTING_VAR_lowpoint);
-         ObjectSetText("heading-"+FUNCGET_instance+"low", "               "+TESTING_VAR_lowwinner, 9, "Courier New", White);
+         if(TESTING_VAR_pair[a] == Symbol()){
+            ObjectCreate("hline-"+FUNCGET_instance+a+"entry", OBJ_RECTANGLE, 0, 
+               iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a] - 1), 
+               TESTING_VAR_highpoint[a], 
+               iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a]), 
+               TESTING_VAR_lowpoint[a]
+            );
+            ObjectSet("hline-"+FUNCGET_instance+a+"entry", OBJPROP_COLOR, Yellow);
+            ObjectSet("hline-"+FUNCGET_instance+a+"entry", OBJPROP_STYLE, 0);
+            ObjectSet("hline-"+FUNCGET_instance+a+"entry", OBJPROP_WIDTH, 1);
+            ObjectSet("hline-"+FUNCGET_instance+a+"entry", OBJPROP_BACK, 0);
+         
+            ObjectCreate("hline-"+FUNCGET_instance+a+"sl", OBJ_RECTANGLE, 0, 
+               iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a] - 1), 
+               TESTING_VAR_highslpoint[a], 
+               iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a]), 
+               TESTING_VAR_lowslpoint[a]
+            );
+            ObjectSet("hline-"+FUNCGET_instance+a+"sl", OBJPROP_COLOR, Red);
+            ObjectSet("hline-"+FUNCGET_instance+a+"sl", OBJPROP_STYLE, 0);
+            ObjectSet("hline-"+FUNCGET_instance+a+"sl", OBJPROP_WIDTH, 1);
+            ObjectSet("hline-"+FUNCGET_instance+a+"sl", OBJPROP_BACK, 0);
+            
+            ObjectCreate("hline-"+FUNCGET_instance+a+"tp", OBJ_RECTANGLE, 0, 
+               iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a] - 1), 
+               TESTING_VAR_hightppoint[a], 
+               iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a]), 
+               TESTING_VAR_lowtppoint[a]
+            );
+            ObjectSet("hline-"+FUNCGET_instance+a+"tp", OBJPROP_COLOR, Green);
+            ObjectSet("hline-"+FUNCGET_instance+a+"tp", OBJPROP_STYLE, 0);
+            ObjectSet("hline-"+FUNCGET_instance+a+"tp", OBJPROP_WIDTH, 1);
+            ObjectSet("hline-"+FUNCGET_instance+a+"tp", OBJPROP_BACK, 0);
+            
+            ObjectCreate("heading-"+FUNCGET_instance+a+"high", OBJ_TEXT, 0, iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a]), TESTING_VAR_highpoint[a]);
+            ObjectSetText("heading-"+FUNCGET_instance+a+"high", "               "+TESTING_VAR_highwinner[a], 9, "Courier New", White);
+            ObjectCreate("heading-"+FUNCGET_instance+a+"low", OBJ_TEXT, 0, iTime(Symbol(),VOLCONST_vol_timeframe, TESTING_VAR_bar[a]), TESTING_VAR_lowpoint[a]);
+            ObjectSetText("heading-"+FUNCGET_instance+a+"low", "               "+TESTING_VAR_lowwinner[a], 9, "Courier New", White);
+         }
       }
    }
    function_end();
@@ -740,31 +938,38 @@ void testing_logarray(int FUNCGET_instance = 1){
 
 void testing_cleararray(){
    function_start("testing_cleararray", true);
-   TESTING_VAR_bar = 0;
-   TESTING_VAR_testvar1 = 0;
-   TESTING_VAR_testvar2 = 0;
-   
-   TESTING_VAR_tp = 0;
-   TESTING_VAR_sl = 0;
-   TESTING_VAR_prize = 0;
-   
-   TESTING_VAR_highpoint = 0;
-   TESTING_VAR_highhit = 0;
-   TESTING_VAR_hightppoint = 0;
-   TESTING_VAR_hightphit = 0;
-   TESTING_VAR_highslpoint = 0;
-   TESTING_VAR_highslhit = 0;
-   TESTING_VAR_highmaxpriorsl = 0;
-   TESTING_VAR_highwinner = 0;
-   
-   TESTING_VAR_lowpoint = 0;
-   TESTING_VAR_lowhit = 0;
-   TESTING_VAR_lowtppoint = 0;
-   TESTING_VAR_lowtphit = 0;
-   TESTING_VAR_lowslpoint = 0;
-   TESTING_VAR_lowslhit = 0;
-   TESTING_VAR_lowmaxpriorsl = 0;
-   TESTING_VAR_lowwinner = 0;         
+   for(int a=0;a<100;a++){
+         TESTING_VAR_pair[a] = "";
+         TESTING_VAR_bar[a] = 0;
+         TESTING_VAR_testvar1[a] = 0;
+         TESTING_VAR_testvar2[a] = 0;
+         TESTING_VAR_spread[a] = 0;
+         TESTING_VAR_stoplossfactor[a] = 0;
+         
+         TESTING_VAR_tp[a] = 0;
+         TESTING_VAR_sl[a] = 0;
+         TESTING_VAR_prize[a] = 0;
+         TESTING_VAR_ratio_spread[a] = 0;
+         TESTING_VAR_ratio_slfactor[a] = 0;
+         
+         TESTING_VAR_highpoint[a] = 0;
+         TESTING_VAR_highhit[a] = 0;
+         TESTING_VAR_hightppoint[a] = 0;
+         TESTING_VAR_hightphit[a] = 0;
+         TESTING_VAR_highslpoint[a] = 0;
+         TESTING_VAR_highslhit[a] = 0;
+         TESTING_VAR_highmaxpriorsl[a] = 0;
+         TESTING_VAR_highwinner[a] = 0;
+         
+         TESTING_VAR_lowpoint[a] = 0;
+         TESTING_VAR_lowhit[a] = 0;
+         TESTING_VAR_lowtppoint[a] = 0;
+         TESTING_VAR_lowtphit[a] = 0;
+         TESTING_VAR_lowslpoint[a] = 0;
+         TESTING_VAR_lowslhit[a] = 0;
+         TESTING_VAR_lowmaxpriorsl[a] = 0;
+         TESTING_VAR_lowwinner[a] = 0;         
+   }
    function_end();
 }
 
@@ -774,10 +979,9 @@ void testing_runtests(){
    //Returns the volitility report and shuts down the EA.
       GLOBAL_runcron = false;
       log("GLOBAL_runcron set to false. *** EA will not perform cron tasks***");
-      log(";;;;;T;S;P;HP;HPH;HTP;HTPH;HSL;HSLH;MH;;LP;LPH;LTP;LTPH;LSL;LSLH;MH;;;Running Balance;Average Return;DD;Max Profit");
-      log(";;;;;;;;;;;;;;;=SUM(R[1]C:R[50000]C);;;;;;;;=SUM(R[1]C:R[50000]C);=SUM(R[1]C:R[50000]C);1000;=AVERAGE(R[1]C19:R[50000]C19,R[1]C27:R[50000]C27);=MIN(R[1]C:R[50000]C);=MAX(R[1]C[-3]:R[50000]C[-3])");
+      log(";;;;;Sprd;SLF;T;S;P;sprd;sl;HP;HPH;HTP;HTPH;HSL;HSLH;MH;=SUM(R[1]C:R[50000]C);LP;LPH;LTP;LTPH;LSL;LSLH;MH;=SUM(R[1]C:R[50000]C);=SUM(R[1]C:R[50000]C);1;=AVERAGE(R[1]C23:R[50000]C23,R[1]C31:R[50000]C31);=MIN(R[1]C:R[50000]C);=MAX(R[1]C[-3]:R[50000]C[-3])");
       ObjectsDeleteAll();
-      for(int a=1; a<960; a++){ //120 is a week, 960 8 week and extent of data
+      for(int a=1; a<1500; a++){
          testing_createarray(a);
          testing_testarray();
          testing_logarray(a);
@@ -795,16 +999,32 @@ void testing_createarray(int FUNCGET_bar = 1){
       FUNCVAR_currencycounter,
       FUNCVAR_barnumberloop
       ;
-       
-   TESTING_VAR_bar = FUNCGET_bar;
-       
-   TESTING_VAR_sl = (-1.0) * (TESTING_DISTANCE + TESTING_SPREAD);
-   TESTING_VAR_tp = (20.0) * MathAbs(TESTING_VAR_sl);
+   
+   for(FUNCVAR_currencycounter=0;FUNCVAR_currencycounter<CURRENCY_selected_numberofpairs;FUNCVAR_currencycounter++){
 
-   if(TESTING_VAR_sl != 0){
-      TESTING_VAR_prize = MathAbs(TESTING_VAR_tp) / MathAbs(TESTING_VAR_sl);
+      TESTING_VAR_pair[FUNCVAR_currencycounter] = CURRENCY_selected_pairs[FUNCVAR_currencycounter];
+      
+      TESTING_VAR_bar[FUNCVAR_currencycounter] = FUNCGET_bar;
+      
+      TESTING_VAR_spread[FUNCVAR_currencycounter] = getinfo(502, TESTING_VAR_pair[FUNCVAR_currencycounter], VOLCONST_vol_timeframe, FUNCGET_bar + 1) * 3;
+      //TESTING_VAR_spread[FUNCVAR_currencycounter] = 1.5 * getinfo(502, TESTING_VAR_pair[FUNCVAR_currencycounter], VOLCONST_vol_timeframe, FUNCGET_bar + 1);
+      //TESTING_VAR_spread[FUNCVAR_currencycounter] = 0.00012;
+      
+      TESTING_VAR_stoplossfactor[FUNCVAR_currencycounter] = getinfo(503, TESTING_VAR_pair[FUNCVAR_currencycounter], VOLCONST_vol_timeframe, FUNCGET_bar + 1) * 3;
+      if(TESTING_VAR_stoplossfactor[FUNCVAR_currencycounter] <= TESTING_VAR_spread[FUNCVAR_currencycounter]){
+         TESTING_VAR_stoplossfactor[FUNCVAR_currencycounter] = TESTING_VAR_spread[FUNCVAR_currencycounter] * 3;
+      }
+         
+      TESTING_VAR_sl[FUNCVAR_currencycounter] = (-1.0) * (TESTING_VAR_stoplossfactor[FUNCVAR_currencycounter]);
+      TESTING_VAR_tp[FUNCVAR_currencycounter] = (20.0) * MathAbs(TESTING_VAR_sl[FUNCVAR_currencycounter]);
+
+      if(TESTING_VAR_sl[FUNCVAR_currencycounter] != 0){
+         TESTING_VAR_prize[FUNCVAR_currencycounter] = MathAbs(TESTING_VAR_tp[FUNCVAR_currencycounter]) / MathAbs(TESTING_VAR_sl[FUNCVAR_currencycounter]);
+      }
+      TESTING_VAR_ratio_spread[FUNCVAR_currencycounter] = MathAbs(TESTING_VAR_sl[FUNCVAR_currencycounter]) / TESTING_VAR_spread[FUNCVAR_currencycounter];
+      TESTING_VAR_ratio_slfactor[FUNCVAR_currencycounter] = MathAbs(TESTING_VAR_sl[FUNCVAR_currencycounter]) / TESTING_VAR_stoplossfactor[FUNCVAR_currencycounter];
+      
    }
-
       
    function_end();
 }
@@ -844,226 +1064,210 @@ void testing_testarray(){
       FUNCVAR_cases
       ;
  
-   
-   TESTING_VAR_highpoint = getinfo(2, SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar + 1); // +  TESTING_DISTANCE; 
-   TESTING_VAR_hightppoint = TESTING_VAR_highpoint + TESTING_VAR_tp;
-   TESTING_VAR_highslpoint = TESTING_VAR_highpoint + TESTING_VAR_sl;  
+   for(int a=0;a<100;a++){
+      if(StringLen(TESTING_VAR_pair[a]) > 2 ){
+    
+         TESTING_VAR_highpoint[a] = getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a] + 1) + MathAbs(TESTING_VAR_sl[a]) * 1/3; // 1 spread inside the bar seems best atm
+         TESTING_VAR_hightppoint[a] = TESTING_VAR_highpoint[a] + TESTING_VAR_tp[a];
+         TESTING_VAR_highslpoint[a] = TESTING_VAR_highpoint[a] + TESTING_VAR_sl[a];  
 
-   TESTING_VAR_lowpoint = getinfo(3, SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar + 1);// - TESTING_DISTANCE;
-   TESTING_VAR_lowtppoint = TESTING_VAR_lowpoint - TESTING_VAR_tp;
-   TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint - TESTING_VAR_sl;
-         
-   FUNCVAR_minibar = iBarShift(SET_CURRENCY, TESTING_MINITIMEFRAME, getinfo(5, SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar));
-   TESTING_VAR_highhit = 0;
-   TESTING_VAR_hightphit = 1000000000000000;
-   TESTING_VAR_highslhit = 1000000000000000;
-   FUNCVAR_counter = 0;
-   FUNCVAR_loss = -1;
-   
-   if(FUNCVAR_minibar > 0){
-      //Find where entry would be made
-      while(FUNCVAR_minibar - FUNCVAR_counter > 0 && FUNCVAR_counter < (TESTING_TIMEFRAME / TESTING_MINITIMEFRAME) - 1 && TESTING_VAR_highhit == 0){
-         if(
-            TESTING_VAR_highpoint <= getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_SPREAD &&
-            TESTING_VAR_highpoint >= getinfo(3, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_SPREAD
-         ){
-            TESTING_VAR_highhit = iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter);
-         }
-         FUNCVAR_counter++;
-      }
+         TESTING_VAR_lowpoint[a] = getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a] + 1) - MathAbs(TESTING_VAR_sl[a]) * 1/3; // 2 spreads outside the bar seems best atm
+         TESTING_VAR_lowtppoint[a] = TESTING_VAR_lowpoint[a] + TESTING_VAR_tp[a];
+         TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a] + TESTING_VAR_sl[a];
             
-      //Check that entry was somewhat clean, else stop out the entry
-      if(
-         1==2 &&
-         (
-            getinfo(4, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter + 1) < TESTING_VAR_highpoint || //if close is lower than entry
-            getinfo(4, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter + 1) < getinfo(1, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter + 1) //if close is lower than open
-         )
-         && 
-         TESTING_VAR_highhit > 0
-      ){
-         TESTING_VAR_highslhit = iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter);
-      }
-      
-      while(
-         FUNCVAR_minibar - FUNCVAR_counter > 0 && 
-         FUNCVAR_counter < (TESTING_TIMEFRAME / TESTING_MINITIMEFRAME) * 40 && 
-         TESTING_VAR_highhit > 0 && //
-         TimeDayOfWeek(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter)) >= TimeDayOfWeek(iTime(SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar)) //Finish searching at end of week
-      ){
-         if(
-            TESTING_VAR_hightppoint <= getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter)
-         ){
-            TESTING_VAR_hightphit = MathMin(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_hightphit);
-         }
-   
-         if(
-            TESTING_VAR_highslpoint >= getinfo(3, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter)
-         ){
-            TESTING_VAR_highslhit = MathMin(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_highslhit);
-         }
-         if(TESTING_VAR_hightphit == 1000000000000000 && TESTING_VAR_highslhit == 1000000000000000){
-            TESTING_VAR_highmaxpriorsl = MathMax(TESTING_VAR_highmaxpriorsl, (getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_highpoint - TESTING_SPREAD)/MathAbs(TESTING_VAR_sl));
-            if(TESTING_VAR_highmaxpriorsl > 15){
-               TESTING_VAR_highslpoint = TESTING_VAR_highpoint + MathAbs(TESTING_VAR_sl)*5;
-               FUNCVAR_loss = 5;
-            }else if(TESTING_VAR_highmaxpriorsl > 10){
-               TESTING_VAR_highslpoint = TESTING_VAR_highpoint + MathAbs(TESTING_VAR_sl)*2.5;
-               FUNCVAR_loss = 2.5;
-            }else if(TESTING_VAR_highmaxpriorsl > 2){
-               TESTING_VAR_highslpoint = TESTING_VAR_highpoint + MathAbs(TESTING_VAR_sl);
-               FUNCVAR_loss = 1;
-            }else if(TESTING_VAR_highmaxpriorsl > 0){
-               TESTING_VAR_highslpoint = TESTING_VAR_highpoint;
-               FUNCVAR_loss = 0;
+            FUNCVAR_minibar = iBarShift(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, getinfo(5, TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a]));
+            TESTING_VAR_highhit[a] = 0;
+            TESTING_VAR_hightphit[a] = 1000000000000000;
+            TESTING_VAR_highslhit[a] = 1000000000000000;
+            FUNCVAR_counter = 0;
+            FUNCVAR_loss = -1;
+            
+            if(FUNCVAR_minibar > 0 && (TESTING_VAR_ratio_spread[a] >= VOLCONST_vol_minsprdrto && TESTING_VAR_ratio_slfactor[a] >= VOLCONST_vol_minslrto)){
+               //Find where entry would be made
+               while(FUNCVAR_minibar - FUNCVAR_counter > 0 && FUNCVAR_counter < (VOLCONST_vol_timeframe / VOLCONST_vol_minitimeframe) - 1 && TESTING_VAR_highhit[a] == 0){
+                  if(
+                     TESTING_VAR_highpoint[a] <= getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_VAR_spread[a] &&
+                     TESTING_VAR_highpoint[a] >= getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_VAR_spread[a]
+                  ){
+                     TESTING_VAR_highhit[a] = iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter);
+                  }
+                  FUNCVAR_counter++;
+               }
+               
+               //Check that entry was somewhat clean, else stop out the entry
+               if(
+                  getinfo(4, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter + 1) < getinfo(1, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter + 1) &&
+                  TESTING_VAR_highhit[a] > 0
+               ){
+                  TESTING_VAR_highslhit[a] = iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter);
+               }
+               
+               while(
+                  FUNCVAR_minibar - FUNCVAR_counter > 0 && 
+                  FUNCVAR_counter < (VOLCONST_vol_timeframe / VOLCONST_vol_minitimeframe) * 40 && 
+                  TESTING_VAR_highhit[a] > 0 && //
+                  TimeDayOfWeek(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter)) >= TimeDayOfWeek(iTime(TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a])) //Finish searching at end of week
+               ){
+                  if(
+                     TESTING_VAR_hightppoint[a] <= getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_spread[a]
+                  ){
+                     TESTING_VAR_hightphit[a] = MathMin(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_hightphit[a]);
+                  }
+            
+                  if(
+                     TESTING_VAR_highslpoint[a] >= getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_VAR_spread[a]
+                  ){
+                     TESTING_VAR_highslhit[a] = MathMin(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_highslhit[a]);
+                  }
+                  if(TESTING_VAR_hightphit[a] == 1000000000000000 && TESTING_VAR_highslhit[a] == 1000000000000000){
+                     TESTING_VAR_highmaxpriorsl[a] = MathMax(TESTING_VAR_highmaxpriorsl[a], (getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_highpoint[a] - TESTING_VAR_spread[a])/MathAbs(TESTING_VAR_sl[a]));
+                     if(TESTING_VAR_highmaxpriorsl[a] > 15){
+                        TESTING_VAR_highslpoint[a] = TESTING_VAR_highpoint[a] + MathAbs(TESTING_VAR_sl[a])*5;
+                        FUNCVAR_loss = 5;
+                     }else if(TESTING_VAR_highmaxpriorsl[a] > 10){
+                        TESTING_VAR_highslpoint[a] = TESTING_VAR_highpoint[a] + MathAbs(TESTING_VAR_sl[a])*2.5;
+                        FUNCVAR_loss = 2.5;
+                     }else if(TESTING_VAR_highmaxpriorsl[a] > 5){
+                        TESTING_VAR_highslpoint[a] = TESTING_VAR_highpoint[a] + MathAbs(TESTING_VAR_sl[a]);
+                        FUNCVAR_loss = 1;
+                     }else if(TESTING_VAR_highmaxpriorsl[a] > 0){
+                        TESTING_VAR_highslpoint[a] = TESTING_VAR_highpoint[a];
+                        FUNCVAR_loss = 0;
+                     }
+                  }
+                  FUNCVAR_counter++;
+               }
             }
-         }
-         FUNCVAR_counter++;
-      }
-   }
-
-   if(TESTING_VAR_hightphit < TESTING_VAR_highslhit && TESTING_VAR_highhit > 0){
-      TESTING_VAR_highwinner = TESTING_VAR_prize;
-   }else if(TESTING_VAR_hightphit > TESTING_VAR_highslhit && TESTING_VAR_highhit > 0){
-      TESTING_VAR_highwinner = FUNCVAR_loss;
-   }else if(TESTING_VAR_highhit > 0){
-      TESTING_VAR_highwinner = 0;
-   }
-
-   FUNCVAR_minibar = iBarShift(SET_CURRENCY, TESTING_MINITIMEFRAME, getinfo(5, SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar));
-   TESTING_VAR_lowhit = 0;
-   TESTING_VAR_lowtphit = 1000000000000000;
-   TESTING_VAR_lowslhit = 1000000000000000;
-   FUNCVAR_counter = 0;
-   FUNCVAR_loss = -1;
    
-   /*
-   
-   // Sell situ
-   
-   if(FUNCVAR_minibar > 0){
-      //Find where entry would be made
-      while(FUNCVAR_minibar - FUNCVAR_counter > 0 && FUNCVAR_counter < (TESTING_TIMEFRAME / TESTING_MINITIMEFRAME) - 1 && TESTING_VAR_lowhit == 0){
-         if(
-            TESTING_VAR_lowpoint <= getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) &&
-            TESTING_VAR_lowpoint >= getinfo(3, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter)
-         ){
-            TESTING_VAR_lowhit = iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter);
-         }
-         FUNCVAR_counter++;
-      }
-
-      //Check that entry was somewhat clean, else stop out the entry
-      if(
-         (
-            getinfo(4, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter + 1) > TESTING_VAR_lowpoint || //if close is higher than entry
-            getinfo(4, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter + 1) > getinfo(1, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter + 1) //if close is higher than open
-         )
-         && 
-         TESTING_VAR_lowhit > 0
-      ){
-         TESTING_VAR_lowslhit = iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter);
-      }
-
-      while(
-         FUNCVAR_minibar - FUNCVAR_counter > 0 && 
-         FUNCVAR_counter < (TESTING_TIMEFRAME / TESTING_MINITIMEFRAME) * 40 && 
-         TESTING_VAR_lowhit > 0 &&
-         TimeDayOfWeek(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter)) >= TimeDayOfWeek(iTime(SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar)) //Finish searching at end of week              
-      ){
-         if(
-            TESTING_VAR_lowtppoint >= getinfo(3, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_SPREAD
-         ){
-            TESTING_VAR_lowtphit = MathMin(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowtphit);
-         }
-   
-         if(
-            TESTING_VAR_lowslpoint <= getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_SPREAD
-         ){
-            TESTING_VAR_lowslhit = MathMin(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowslhit);
-         }
-         if(TESTING_VAR_lowtphit == 1000000000000000 && TESTING_VAR_lowslhit == 1000000000000000){
-            TESTING_VAR_lowmaxpriorsl = MathMax(TESTING_VAR_lowmaxpriorsl, (TESTING_VAR_lowpoint - getinfo(3, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_SPREAD)/MathAbs(TESTING_VAR_sl));
-            if(TESTING_VAR_lowmaxpriorsl > 15){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint - MathAbs(TESTING_VAR_sl)*5;
-               FUNCVAR_loss = 5;
-            }else if(TESTING_VAR_lowmaxpriorsl > 10){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint - MathAbs(TESTING_VAR_sl)*2.5;
-               FUNCVAR_loss = 2.5;
-            }else if(TESTING_VAR_lowmaxpriorsl > 5){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint - MathAbs(TESTING_VAR_sl);
-               FUNCVAR_loss = 1;
-            }else if(TESTING_VAR_lowmaxpriorsl > 0){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint;
-               FUNCVAR_loss = 0;
+            if(TESTING_VAR_hightphit[a] < TESTING_VAR_highslhit[a] && TESTING_VAR_highhit[a] > 0){
+               TESTING_VAR_highwinner[a] = TESTING_VAR_prize[a];
+            }else if(TESTING_VAR_hightphit[a] > TESTING_VAR_highslhit[a] && TESTING_VAR_highhit[a] > 0){
+               TESTING_VAR_highwinner[a] = FUNCVAR_loss;
+            }else if(TESTING_VAR_highhit[a] > 0){
+               TESTING_VAR_highwinner[a] = 0;
             }
-         }
-         FUNCVAR_counter++;
-      }
-   }
-
-   // Buy situ   
    
-   if(FUNCVAR_minibar > 0){
-      //Find where entry would be made
-      while(FUNCVAR_minibar - FUNCVAR_counter > 0 && FUNCVAR_counter < (TESTING_TIMEFRAME / TESTING_MINITIMEFRAME) - 1 && TESTING_VAR_lowhit == 0){
-         if(
-            TESTING_VAR_lowpoint <= getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_SPREAD &&
-            TESTING_VAR_lowpoint >= getinfo(3, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_SPREAD
-         ){
-            TESTING_VAR_lowhit = iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter);
-         }
-         FUNCVAR_counter++;
-      }
-      
-      FUNCVAR_counter--; //Take the counter back one to check the entry bar
-      
-      while(
-         FUNCVAR_minibar - FUNCVAR_counter > 0 && 
-         FUNCVAR_counter < (TESTING_TIMEFRAME / TESTING_MINITIMEFRAME) * 40 && 
-         TESTING_VAR_lowhit > 0 &&
-         TimeDayOfWeek(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter)) >= TimeDayOfWeek(iTime(SET_CURRENCY, TESTING_TIMEFRAME, TESTING_VAR_bar)) //Finish searching at end of week              
-      ){
-         if(
-            TESTING_VAR_lowtppoint <= getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_SPREAD
-         ){
-            TESTING_VAR_lowtphit = MathMin(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowtphit);
-         }
-   
-         if(
-            TESTING_VAR_lowslpoint >= getinfo(3, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_SPREAD
-         ){
-            TESTING_VAR_lowslhit = MathMin(iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowslhit);
-         }
-         if(TESTING_VAR_lowtphit == 1000000000000000 && TESTING_VAR_lowslhit == 1000000000000000 && TESTING_VAR_lowhit != iTime(SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter)){ // Don't check the first bar
-            TESTING_VAR_lowmaxpriorsl = MathMax(TESTING_VAR_lowmaxpriorsl, (getinfo(2, SET_CURRENCY, TESTING_MINITIMEFRAME, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_lowpoint - TESTING_SPREAD)/MathAbs(TESTING_VAR_sl));
-            if(TESTING_VAR_lowmaxpriorsl > 15){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint + MathAbs(TESTING_VAR_sl)*5;
-               FUNCVAR_loss = 5;
-            }else if(TESTING_VAR_lowmaxpriorsl > 10){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint + MathAbs(TESTING_VAR_sl)*2.5;
-               FUNCVAR_loss = 2.5;
-            }else if(TESTING_VAR_lowmaxpriorsl > 5){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint + MathAbs(TESTING_VAR_sl);
-               FUNCVAR_loss = 1;
-            }else if(TESTING_VAR_lowmaxpriorsl > 0){
-               TESTING_VAR_lowslpoint = TESTING_VAR_lowpoint;
-               FUNCVAR_loss = 0;
+            FUNCVAR_minibar = iBarShift(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, getinfo(5, TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a]));
+            TESTING_VAR_lowhit[a] = 0;
+            TESTING_VAR_lowtphit[a] = 1000000000000000;
+            TESTING_VAR_lowslhit[a] = 1000000000000000;
+            FUNCVAR_counter = 0;
+            FUNCVAR_loss = -1;
+            
+            /* Original Sell Verison 
+            if(FUNCVAR_minibar > 0 && (TESTING_VAR_ratio_spread[a] >= VOLCONST_vol_minsprdrto && TESTING_VAR_ratio_slfactor[a] >= VOLCONST_vol_minslrto)){
+               //Find where entry would be made
+               while(FUNCVAR_minibar - FUNCVAR_counter > 0 && FUNCVAR_counter < (VOLCONST_vol_timeframe / VOLCONST_vol_minitimeframe) - 1 && TESTING_VAR_lowhit[a] == 0){
+                  if(
+                     TESTING_VAR_lowpoint[a] <= getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) &&
+                     TESTING_VAR_lowpoint[a] >= getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter)
+                  ){
+                     TESTING_VAR_lowhit[a] = iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter);
+                  }
+                  FUNCVAR_counter++;
+               }
+         
+               while(
+                  FUNCVAR_minibar - FUNCVAR_counter > 0 && 
+                  FUNCVAR_counter < (VOLCONST_vol_timeframe / VOLCONST_vol_minitimeframe) * 40 && 
+                  TESTING_VAR_lowhit[a] > 0 &&
+                  TimeDayOfWeek(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter)) >= TimeDayOfWeek(iTime(TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a])) //Finish searching at end of week              
+               ){
+                  if(
+                     TESTING_VAR_lowtppoint[a] >= getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_spread[a]
+                  ){
+                     TESTING_VAR_lowtphit[a] = MathMin(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowtphit[a]);
+                  }
+            
+                  if(
+                     TESTING_VAR_lowslpoint[a] <= getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_VAR_spread[a]
+                  ){
+                     TESTING_VAR_lowslhit[a] = MathMin(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowslhit[a]);
+                  }
+                  if(TESTING_VAR_lowtphit[a] == 1000000000000000 && TESTING_VAR_lowslhit[a] == 1000000000000000){
+                     TESTING_VAR_lowmaxpriorsl[a] = MathMax(TESTING_VAR_lowmaxpriorsl[a], (TESTING_VAR_lowpoint[a] - getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_spread[a])/TESTING_VAR_sl[a]);
+                     if(TESTING_VAR_lowmaxpriorsl[a] > 15){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a] - MathAbs(TESTING_VAR_sl[a])*5;
+                        FUNCVAR_loss = 5;
+                     }else if(TESTING_VAR_lowmaxpriorsl[a] > 10){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a] - MathAbs(TESTING_VAR_sl[a])*2.5;
+                        FUNCVAR_loss = 2.5;
+                     }else if(TESTING_VAR_lowmaxpriorsl[a] > 5){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a] - MathAbs(TESTING_VAR_sl[a]);
+                        FUNCVAR_loss = 1;
+                     }else if(TESTING_VAR_lowmaxpriorsl[a] > 0){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a];
+                        FUNCVAR_loss = 0;
+                     }
+                  }
+                  FUNCVAR_counter++;
+               }
             }
-         }
-         FUNCVAR_counter++;
+            */
+            
+            if(FUNCVAR_minibar > 0 && (TESTING_VAR_ratio_spread[a] >= VOLCONST_vol_minsprdrto && TESTING_VAR_ratio_slfactor[a] >= VOLCONST_vol_minslrto)){
+               //Find where entry would be made
+               while(FUNCVAR_minibar - FUNCVAR_counter > 0 && FUNCVAR_counter < (VOLCONST_vol_timeframe / VOLCONST_vol_minitimeframe) - 1 && TESTING_VAR_lowhit[a] == 0){
+                  if(
+                     TESTING_VAR_lowpoint[a] <= getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) &&
+                     TESTING_VAR_lowpoint[a] >= getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter)
+                  ){
+                     TESTING_VAR_lowhit[a] = iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter);
+                  }
+                  FUNCVAR_counter++;
+               }
+               
+               FUNCVAR_counter--; //Take the counter back one to check the entry bar
+               
+               while(
+                  FUNCVAR_minibar - FUNCVAR_counter > 0 && 
+                  FUNCVAR_counter < (VOLCONST_vol_timeframe / VOLCONST_vol_minitimeframe) * 40 && 
+                  TESTING_VAR_lowhit[a] > 0 &&
+                  TimeDayOfWeek(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter)) >= TimeDayOfWeek(iTime(TESTING_VAR_pair[a], VOLCONST_vol_timeframe, TESTING_VAR_bar[a])) //Finish searching at end of week              
+               ){
+                  if(
+                     TESTING_VAR_lowtppoint[a] <= getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_spread[a]
+                  ){
+                     TESTING_VAR_lowtphit[a] = MathMin(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowtphit[a]);
+                  }
+            
+                  if(
+                     TESTING_VAR_lowslpoint[a] >= getinfo(3, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) + TESTING_VAR_spread[a]
+                  ){
+                     TESTING_VAR_lowslhit[a] = MathMin(iTime(TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter), TESTING_VAR_lowslhit[a]);
+                  }
+                  if(TESTING_VAR_lowtphit[a] == 1000000000000000 && TESTING_VAR_lowslhit[a] == 1000000000000000){
+                     TESTING_VAR_lowmaxpriorsl[a] = MathMax(TESTING_VAR_lowmaxpriorsl[a], (getinfo(2, TESTING_VAR_pair[a], VOLCONST_vol_minitimeframe, FUNCVAR_minibar - FUNCVAR_counter) - TESTING_VAR_lowpoint[a] - TESTING_VAR_spread[a])/TESTING_VAR_sl[a]);
+                     if(TESTING_VAR_lowmaxpriorsl[a] > 15){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a] + MathAbs(TESTING_VAR_sl[a])*5;
+                        FUNCVAR_loss = 5;
+                     }else if(TESTING_VAR_lowmaxpriorsl[a] > 10){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a] + MathAbs(TESTING_VAR_sl[a])*2.5;
+                        FUNCVAR_loss = 2.5;
+                     }else if(TESTING_VAR_lowmaxpriorsl[a] > 5){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a] + MathAbs(TESTING_VAR_sl[a]);
+                        FUNCVAR_loss = 1;
+                     }else if(TESTING_VAR_lowmaxpriorsl[a] > 0){
+                        TESTING_VAR_lowslpoint[a] = TESTING_VAR_lowpoint[a];
+                        FUNCVAR_loss = 0;
+                     }
+                  }
+                  FUNCVAR_counter++;
+               }
+            }
+            
+   
+            if(TESTING_VAR_lowtphit[a] < TESTING_VAR_lowslhit[a] && TESTING_VAR_lowhit[a] > 0){
+               TESTING_VAR_lowwinner[a] = TESTING_VAR_prize[a];
+            }else if(TESTING_VAR_lowtphit[a] > TESTING_VAR_lowslhit[a] && TESTING_VAR_lowhit[a] > 0){
+               TESTING_VAR_lowwinner[a] = FUNCVAR_loss;
+            }else if(TESTING_VAR_lowhit[a] > 0){
+               TESTING_VAR_lowwinner[a] = 0;
+            }
+         //}
       }
    }
-   */
-
-   if(TESTING_VAR_lowtphit < TESTING_VAR_lowslhit && TESTING_VAR_lowhit > 0){
-      TESTING_VAR_lowwinner = TESTING_VAR_prize;
-   }else if(TESTING_VAR_lowtphit > TESTING_VAR_lowslhit && TESTING_VAR_lowhit > 0){
-      TESTING_VAR_lowwinner = FUNCVAR_loss;
-   }else if(TESTING_VAR_lowhit > 0){
-      TESTING_VAR_lowwinner = 0;
-   }
-
+      
    function_end();
 }
 
@@ -1125,61 +1329,64 @@ void account_createorders(){
       FUNCVAR_symbol,
       FUNCVAR_comment
       ;
-                
-      FUNCVAR_symbol = SET_CURRENCY;
-      FUNCVAR_target = SET_DISTANCE;  
+
+   for(FUNCVAR_currencycounter=0;FUNCVAR_currencycounter<CURRENCY_selected_numberofpairs;FUNCVAR_currencycounter++){
+                 
+      FUNCVAR_symbol = CURRENCY_selected_pairs[FUNCVAR_currencycounter];
+      FUNCVAR_target = MarketInfo(FUNCVAR_symbol, MODE_STOPLEVEL) * MarketInfo(FUNCVAR_symbol, MODE_POINT);  
+      FUNCVAR_target = MathMax(FUNCVAR_target, GLOBAL_piptarget);
       FUNCVAR_volume = account_getlotsize(FUNCVAR_target, FUNCVAR_symbol);
       FUNCVAR_slippage = 2;
-     
       FUNCVAR_attempt = 1;
       FUNCVAR_ticket = -1;
    
-   while(FUNCVAR_ticket < 0 && FUNCVAR_attempt < 6 && FUNCVAR_volume > 0){
-      FUNCVAR_price = getinfo(2, FUNCVAR_symbol, GLOBAL_timeframe, 1) + FUNCVAR_target * 1/3;
-      FUNCVAR_sl = FUNCVAR_price - FUNCVAR_target;
-      FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 20);
-      FUNCVAR_comment = FUNCVAR_target;
-      FUNCVAR_time = iTime(FUNCVAR_symbol, GLOBAL_timeframe, 0) + GLOBAL_timeframe * 60;
-      FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_BUYSTOP, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
-      if(FUNCVAR_ticket < 0){
-         FUNCVAR_errornumber = GetLastError();
-         log("Order failed attempt "+FUNCVAR_attempt+" with error #"+FUNCVAR_errornumber+" - "+ErrorDescription(FUNCVAR_errornumber));
-         log("OP_BUYSTOP "+FUNCVAR_symbol+" "+FUNCVAR_volume+" "+FUNCVAR_price+" "+FUNCVAR_slippage+" "+FUNCVAR_sl+" "+FUNCVAR_tp+" "+FUNCVAR_comment+" "+FUNCVAR_time);
-         Sleep(GLOBAL_pausetime);
-         FUNCVAR_attempt++;
-         RefreshRates();
+      while(FUNCVAR_ticket < 0 && FUNCVAR_attempt < 6 && FUNCVAR_volume > 0){
+         FUNCVAR_price = getinfo(2, FUNCVAR_symbol, GLOBAL_timeframe, 1) + 0.00005;
+         FUNCVAR_sl = FUNCVAR_price - FUNCVAR_target;
+         FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 1);
+         FUNCVAR_comment = FUNCVAR_target;
+         FUNCVAR_time = iTime(FUNCVAR_symbol, GLOBAL_timeframe, 0) + GLOBAL_timeframe * 60;
+         FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_BUYSTOP, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
+         if(FUNCVAR_ticket < 0){
+            FUNCVAR_errornumber = GetLastError();
+            log("Order failed attempt "+FUNCVAR_attempt+" with error #"+FUNCVAR_errornumber+" - "+ErrorDescription(FUNCVAR_errornumber));
+            log("OP_BUYSTOP "+FUNCVAR_symbol+" "+FUNCVAR_volume+" "+FUNCVAR_price+" "+FUNCVAR_slippage+" "+FUNCVAR_sl+" "+FUNCVAR_tp+" "+FUNCVAR_comment+" "+FUNCVAR_time);
+            Sleep(GLOBAL_pausetime);
+            FUNCVAR_attempt++;
+            RefreshRates();
+         }
       }
-   }
-   if(FUNCVAR_attempt == 6){
-      log("Order unable to be opened.");
-   }
-   
-   FUNCVAR_attempt = 1;
-   FUNCVAR_ticket = -1;
-   
-   while(FUNCVAR_ticket < 0 && FUNCVAR_attempt < 6 && FUNCVAR_volume > 0){
-      FUNCVAR_price = getinfo(3, FUNCVAR_symbol, GLOBAL_timeframe, 1) - FUNCVAR_target * 1/3;
-      //FUNCVAR_sl = FUNCVAR_price + FUNCVAR_target;
-      //FUNCVAR_tp = FUNCVAR_price - (FUNCVAR_target * 20);
-      FUNCVAR_sl = FUNCVAR_price - FUNCVAR_target;
-      FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 20);
-      FUNCVAR_comment = FUNCVAR_target;
-      FUNCVAR_time = iTime(FUNCVAR_symbol, GLOBAL_timeframe, 0) + GLOBAL_timeframe * 60;
-      //FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_SELLSTOP, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
-      FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_BUYLIMIT, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
-      if(FUNCVAR_ticket < 0){
-         FUNCVAR_errornumber = GetLastError();
-         log("Order failed attempt "+FUNCVAR_attempt+" with error #"+FUNCVAR_errornumber+" - "+ErrorDescription(FUNCVAR_errornumber));
-         log("OP_BUYLIMIT "+FUNCVAR_symbol+" "+FUNCVAR_volume+" "+FUNCVAR_price+" "+FUNCVAR_slippage+" "+FUNCVAR_sl+" "+FUNCVAR_tp+" "+FUNCVAR_comment+" "+FUNCVAR_time);
-         Sleep(GLOBAL_pausetime);
-         FUNCVAR_attempt++;
-         RefreshRates();
+      if(FUNCVAR_attempt == 6){
+         log("Order unable to be opened.");
       }
-   }
-   if(FUNCVAR_attempt == 6){
-      log("Order unable to be opened.");
-   }
       
+      FUNCVAR_attempt = 1;
+      FUNCVAR_ticket = -1;
+      
+      while(FUNCVAR_ticket < 0 && FUNCVAR_attempt < 6 && FUNCVAR_volume > 0){
+         FUNCVAR_price = getinfo(3, FUNCVAR_symbol, GLOBAL_timeframe, 1) - 0.00005;
+         FUNCVAR_sl = FUNCVAR_price + FUNCVAR_target;
+         FUNCVAR_tp = FUNCVAR_price - (FUNCVAR_target * 1);
+         //FUNCVAR_sl = FUNCVAR_price - FUNCVAR_target;
+         //FUNCVAR_tp = FUNCVAR_price + (FUNCVAR_target * 20);
+         FUNCVAR_comment = FUNCVAR_target;
+         FUNCVAR_time = iTime(FUNCVAR_symbol, GLOBAL_timeframe, 0) + GLOBAL_timeframe * 60;
+         FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_SELLSTOP, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
+         //FUNCVAR_ticket = OrderSend(FUNCVAR_symbol, OP_BUYLIMIT, FUNCVAR_volume, FUNCVAR_price, FUNCVAR_slippage, FUNCVAR_sl, FUNCVAR_tp, FUNCVAR_comment, 0, FUNCVAR_time);
+         if(FUNCVAR_ticket < 0){
+            FUNCVAR_errornumber = GetLastError();
+            log("Order failed attempt "+FUNCVAR_attempt+" with error #"+FUNCVAR_errornumber+" - "+ErrorDescription(FUNCVAR_errornumber));
+            log("OP_BUYLIMIT "+FUNCVAR_symbol+" "+FUNCVAR_volume+" "+FUNCVAR_price+" "+FUNCVAR_slippage+" "+FUNCVAR_sl+" "+FUNCVAR_tp+" "+FUNCVAR_comment+" "+FUNCVAR_time);
+            Sleep(GLOBAL_pausetime);
+            FUNCVAR_attempt++;
+            RefreshRates();
+         }
+      }
+      if(FUNCVAR_attempt == 6){
+         log("Order unable to be opened.");
+      }
+      
+   }
    function_end();
 }
 

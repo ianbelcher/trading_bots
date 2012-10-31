@@ -14,7 +14,7 @@ int start(){
       ObjectSet(name_pp, OBJPROP_PRICE1, price);
    }
    ObjectSet(name_pp, OBJPROP_STYLE, STYLE_DASH);
-   ObjectSet(name_pp, OBJPROP_COLOR, Yellow);
+   ObjectSet(name_pp, OBJPROP_COLOR, DodgerBlue);
    
    if(ObjectFind(name_sl) == -1){
       ObjectCreate(name_sl, OBJ_HLINE, 0, TimeCurrent(), price - distance);

@@ -64,7 +64,7 @@ int init(){
       
       for(FUNCVAR_counter=0;FUNCVAR_counter<ArraySize(GLOBAL_pairs);FUNCVAR_counter++){      
          ObjectCreate("textc2"+FUNCVAR_counter, OBJ_LABEL, 0, 0, 0);
-         ObjectSet("textc2"+FUNCVAR_counter, OBJPROP_XDISTANCE, 450);
+         ObjectSet("textc2"+FUNCVAR_counter, OBJPROP_XDISTANCE, 400);
          ObjectSet("textc2"+FUNCVAR_counter, OBJPROP_YDISTANCE, 40 + 10*FUNCVAR_counter);
          ObjectSet("textc2"+FUNCVAR_counter, OBJPROP_WIDTH, 400);
       }    
@@ -181,7 +181,7 @@ int start(){
                FUNCVAR_bprepend+NormalizeDouble(GLOBAL_rating[index],2)+"   "+
                FUNCVAR_cprepend+GLOBAL_movement[index]+"   "+
                FUNCVAR_dprepend+GLOBAL_CDe[index]+"   "+
-               "Cost"+" "+
+               ""+" "+
                "";
                //StringSubstr(SIGNATURE_SUM_target[FUNCVAR_counter]+"     ",0,4)+" "+  
          }else{

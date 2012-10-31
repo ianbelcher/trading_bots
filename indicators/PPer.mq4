@@ -9,12 +9,12 @@
 #property indicator_chart_window
 #property indicator_buffers 7
 #property indicator_color1 Blue
-#property indicator_color2 Yellow
-#property indicator_color3 Yellow
+#property indicator_color2 Green
+#property indicator_color3 Green
 #property indicator_color4 Red
 #property indicator_color5 Red
-#property indicator_color6 White
-#property indicator_color7 White
+#property indicator_color6 Pink
+#property indicator_color7 Pink
 
 extern int extern_timeframe   = 10080;  //In minutes, the chart to work off when calculating PP lines.
 
